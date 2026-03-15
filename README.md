@@ -1,0 +1,1 @@
+This project is just a practical security learning project to build a platform for students comments, and will not take responsibility of any comments on it.
