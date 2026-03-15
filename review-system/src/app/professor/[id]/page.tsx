@@ -72,7 +72,8 @@ export default function ProfessorPage({ params }: { params: Promise<{ id: string
             <header className="bg-white border rounded-3xl p-8 mb-8 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
                     <h1 className="text-4xl font-black text-gray-900">{prof?.name || '加载中...'}</h1>
-                    <p className="text-gray-500 mt-2 font-medium">{prof?.department || '计算机学院'}</p>
+                    <p className="text-lg font-semibold text-gray-700 mt-3">{prof?.title || '暂无头衔'}</p>
+                    <p className="text-blue-600 mt-2 font-semibold">{prof?.department || '计算机学院'}</p>
                     <div className="flex gap-8 mt-6">
                         <div className="flex flex-col">
                             <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest mb-1">教学质量</span>
