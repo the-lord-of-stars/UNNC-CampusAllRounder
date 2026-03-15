@@ -110,11 +110,11 @@ export default function HomePage() {
                 <div className="flex items-center gap-8">
                     <div className="font-black text-2xl tracking-tighter">HIT.PROF</div>
                     <div className="hidden md:flex relative group w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input
                             type="text"
                             placeholder="快速寻找教授..."
-                            className="w-full pl-10 pr-4 py-2 rounded-xl bg-gray-50 border-none focus:ring-2 focus:ring-black outline-none text-sm transition-all"
+                            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-gray-200 focus:border-black focus:ring-1 focus:ring-black outline-none text-sm transition-all shadow-sm group-hover:border-gray-300"
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
