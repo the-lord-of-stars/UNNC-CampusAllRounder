@@ -79,7 +79,7 @@ export default function HomePage() {
 
     // 榜单渲染组件 (抽离以复用)
     const LeaderboardSection = ({ title, icon: Icon, data, scoreKey, colorClass }: any) => (
-        <div className="bg-gray-50/50 rounded-[2rem] p-6 border border-gray-100">
+        <div className="bg-white rounded-[2rem] p-6 border border-gray-100">
             <div className="flex items-center gap-2 mb-6">
                 <Icon size={20} className={colorClass} />
                 <h3 className="font-black tracking-tight">{title}</h3>
@@ -137,7 +137,7 @@ export default function HomePage() {
                     <div className="flex items-end justify-between mb-8">
                         <div>
                             <h2 className="text-4xl font-black tracking-tight mb-2">探索评价</h2>
-                            <p className="text-gray-400 font-medium">共发现 {profs.length}+ 位教师的数据更新</p>
+                            <p className="text-gray-400 font-medium">已显示 {profs.length}+ 位教师的数据</p>
                         </div>
                     </div>
 
