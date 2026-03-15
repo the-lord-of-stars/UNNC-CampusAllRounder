@@ -1,64 +1,78 @@
 "use client"
-import { useState } from 'react';
+import { useState, useEffect, use } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
+import { MessageSquarePlus, ArrowLeft, GraduationCap, Microscope } from 'lucide-react';
 
-export default function ProfessorDetail() {
-    const [tab, setTab] = useState<'course' | 'research'>('course');
+export default function ProfessorPage({ params }: { params: Promise<{ id: string }> }) {
+    // 1. 使用 React.use() 解包 params
+    const router = useRouter();
+    const resolvedParams = use(params);
+    const profId = resolvedParams.id;
+
+    const [activeTab, setActiveTab] = useState<'course' | 'research'>('course');
+    const [reviews, setReviews] = useState<any[]>([]);
+    const [prof, setProf] = useState<any>(null);
+
+    useEffect(() => {
+        const fetchProf = async () => {
+            const { data } = await supabase
+                .from('professor_stats')
+                .select('*')
+                .eq('id', profId) // 使用解包后的 ID
+                .single();
+            setProf(data);
+        };
+
+        const fetchReviews = async () => {
+            const { data } = await supabase
+                .from('reviews')
+                .select('*')
+                .eq('professor_id', profId) // 使用解包后的 ID
+                .eq('is_visible', true)
+                .order('created_at', { ascending: false });
+            setReviews(data || []);
+        };
+
+        if (profId) {
+            fetchProf();
+            fetchReviews();
+        }
+    }, [profId]);
 
     return (
         <div className="max-w-4xl mx-auto p-6">
-            {/* 教授头部详情已省略... */}
+            <button
+                onClick={() => router.back()}
+                className="group flex items-center gap-2 text-gray-500 hover:text-black transition-colors mb-6 text-sm font-medium"
+            >
+                <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                返回教授列表
+            </button>
 
-            {/* 切换 Tab */}
-            <div className="flex gap-8 border-b mb-8">
-                <button
-                    onClick={() => setTab('course')}
-                    className={`pb-4 text-sm font-bold transition ${tab === 'course' ? 'border-b-2 border-black' : 'text-gray-400'}`}
-                >
-                    课程评价 (12)
-                </button>
-                <button
-                    onClick={() => setTab('research')}
-                    className={`pb-4 text-sm font-bold transition ${tab === 'research' ? 'border-b-2 border-black' : 'text-gray-400'}`}
-                >
-                    科研/导师评价 (5)
-                </button>
-            </div>
-
-            {/* 评论列表项示例 */}
-            <div className="bg-white border rounded-2xl p-6 mb-4">
-                <div className="flex justify-between mb-4">
-                    <div className="flex gap-4">
-                        <div className="bg-gray-50 p-2 rounded text-center">
-                            <p className="text-[10px] text-gray-400 uppercase">Quality</p>
-                            <p className="text-lg font-black text-blue-600">5.0</p>
+            {/* ... 之前的 UI 代码保持不变，只需确保里面的变量名对齐 ... */}
+            <header className="bg-white border rounded-3xl p-8 mb-8 shadow-sm flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-black">{prof?.name || '加载中...'}</h1>
+                    <p className="text-gray-500 mt-1">{prof?.department}</p>
+                    <div className="flex gap-4 mt-4">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">教学评分</span>
+                            <span className="text-2xl font-black text-blue-600">{prof?.avg_teaching_quality?.toFixed(1) || 'N/A'}</span>
                         </div>
-                        <div className="bg-gray-50 p-2 rounded text-center">
-                            <p className="text-[10px] text-gray-400 uppercase">Difficulty</p>
-                            <p className="text-lg font-black text-red-400">2.0</p>
+                        <div className="w-px h-10 bg-gray-100 mx-2" />
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">科研评分</span>
+                            <span className="text-2xl font-black text-purple-600">{prof?.avg_research_quality?.toFixed(1) || 'N/A'}</span>
                         </div>
                     </div>
-                    <div className="text-right text-sm text-gray-400">
-                        COMP3007 • Feb 5th, 2025
-                    </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-xs font-medium text-gray-600">
-                    <span>For Credit: <b className="text-black">Yes</b></span>
-                    <span>Attendance: <b className="text-black">No</b></span>
-                    <span>Grade: <b className="text-black">A+</b></span>
-                    <span>Again: <b className="text-black">Yes</b></span>
-                </div>
-
-                <p className="text-gray-700 leading-relaxed">
-                    Xin is genuinely one of the nicest professors ever... (评价正文)
-                </p>
-
-                {/* 点赞按钮 */}
-                <div className="mt-4 flex gap-4">
-                    <button className="text-xs border px-3 py-1 rounded-full hover:bg-gray-50">👍 12</button>
-                    <button className="text-xs border px-3 py-1 rounded-full hover:bg-gray-50">👎 0</button>
-                </div>
-            </div>
+                <button className="flex items-center gap-2 bg-black text-white px-6 py-3 rounded-2xl hover:bg-zinc-800 transition shadow-lg shadow-black/10 font-bold">
+                    <MessageSquarePlus size={20} />
+                    评价一下
+                </button>
+            </header>
         </div>
     );
 }

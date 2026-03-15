@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase'; // 引入刚才创建的实例
 import { Search, GraduationCap, Microscope } from 'lucide-react';
 import Link from 'next/link';
+import { signInWithGithub, signOut } from '@/lib/supabase';
 
 interface Professor {
     id: string;
@@ -17,6 +18,22 @@ export default function HomePage() {
     const [search, setSearch] = useState('');
     const [profs, setProfs] = useState<Professor[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const [user, setUser] = useState<any>(null);
+
+    useEffect(() => {
+        // 检查初始 Session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user ?? null);
+        });
+
+        // 监听 Auth 状态变化
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     useEffect(() => {
         const fetchProfs = async () => {
@@ -50,6 +67,22 @@ export default function HomePage() {
 
     return (
         <main className="max-w-6xl mx-auto p-6">
+            <nav className="flex justify-end p-4">
+                {user ? (
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm text-gray-600">你好, {user.user_metadata.full_name}</span>
+                        <button onClick={signOut} className="text-xs text-red-500">退出</button>
+                    </div>
+                ) : (
+                    <button
+                        onClick={signInWithGithub}
+                        className="bg-black text-white px-4 py-2 rounded-lg text-sm font-medium"
+                    >
+                        GitHub 登录
+                    </button>
+                )}
+            </nav>
+
             {/* Header */}
             <div className="flex flex-col items-center my-12 text-center">
                 <h1 className="text-4xl font-extrabold tracking-tight">CS Professor Ranking</h1>
