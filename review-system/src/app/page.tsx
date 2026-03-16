@@ -1,63 +1,88 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { supabase, signInWithGithub, signOut } from '@/lib/supabase';
-// 💡 注意这里我帮你引入了 BookOpen 作为课程的图标
-import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, ChevronRight, BookOpen } from 'lucide-react';
+import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, BookOpen, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 6;
 
 export default function HomePage() {
     const [search, setSearch] = useState('');
+    const [selectedCourseId, setSelectedCourseId] = useState('all');
+    const [courseOptions, setCourseOptions] = useState<any[]>([]);
     const [profs, setProfs] = useState<any[]>([]);
-    const [topTeaching, setTopTeaching] = useState<any[]>([]); // 教学榜
-    const [topResearch, setTopResearch] = useState<any[]>([]); // 科研榜
+    const [topTeaching, setTopTeaching] = useState<any[]>([]);
+    const [topResearch, setTopResearch] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [user, setUser] = useState<any>(null);
 
-    // ================= 新增：课程相关状态 =================
-    const [courses, setCourses] = useState<any[]>([]);
-    const [loadingCourses, setLoadingCourses] = useState(true);
-    // ==================================================
-
+    // 1. 初始化基础数据
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setUser(session?.user ?? null);
         });
 
-        // 同时获取两个榜单
-        const fetchLeaderboards = async () => {
-            const { data: teaching } = await supabase
-                .from('professor_stats')
-                .select('*')
-                .order('avg_teaching_quality', { ascending: false, nullsFirst: false})
-                .range(0, 4);
-            setTopTeaching(teaching || []);
+        const initData = async () => {
+            // 获取下拉菜单所需的课程列表
+            const { data: cData } = await supabase.from('courses').select('id, course_code, course_name').order('course_code');
+            setCourseOptions(cData || []);
 
-            const { data: research } = await supabase
-                .from('professor_stats')
-                .select('*')
-                .order('avg_research_quality', { ascending: false, nullsFirst: false })
-                .range(0, 4);
-            setTopResearch(research || []);
+            // 获取排行榜 (Top 5)
+            const fetchTop = async (column: string) => {
+                const { data } = await supabase
+                    .from('professor_stats')
+                    .select('*')
+                    .not(column, 'is', null)
+                    .gt('total_reviews', 0)
+                    .order(column, { ascending: false, nullsFirst: false })
+                    .limit(5);
+                return data || [];
+            };
+
+            const [tData, rData] = await Promise.all([fetchTop('avg_teaching_quality'), fetchTop('avg_research_quality')]);
+            setTopTeaching(tData);
+            setTopResearch(rData);
         };
-        fetchLeaderboards();
-
+        initData();
         return () => subscription.unsubscribe();
     }, []);
 
+    // 2. 核心抓取逻辑：联表查询 + 课程标签提取
     const fetchProfs = async (isNewSearch: boolean, targetPage: number) => {
         if (isNewSearch) setLoading(true);
         else setLoadingMore(true);
+
         const from = targetPage * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        let query = supabase.from('professor_stats').select('*').order('avg_teaching_quality', { ascending: false }).range(from, to);
+
+        // 构建查询：关联中间表和课程表以获取标签
+        // 使用 !inner 实现硬筛选（如果选了特定课程）
+        const joinType = selectedCourseId === 'all' ? 'course_professors' : 'course_professors!inner';
+
+        let query = supabase
+            .from('professor_stats')
+            .select(`
+                *,
+                ${joinType} (
+                    course_id,
+                    courses (course_code)
+                )
+            `)
+            .order('avg_teaching_quality', { ascending: false, nullsFirst: false })
+            .range(from, to);
+
         if (search) query = query.ilike('name', `%${search}%`);
+
+        if (selectedCourseId !== 'all') {
+            query = query.eq('course_professors.course_id', selectedCourseId);
+        }
+
         const { data, error } = await query;
+
         if (!error && data) {
             setProfs(prev => {
                 if (isNewSearch) return data;
@@ -71,30 +96,13 @@ export default function HomePage() {
         setLoadingMore(false);
     };
 
-    // ================= 新增：获取课程数据 =================
-    const fetchCourses = async (isNewSearch: boolean) => {
-        if (isNewSearch) setLoadingCourses(true);
-        
-        let query = supabase.from('courses').select('*, professors(id, name)').order('score', { ascending: false }).limit(6); 
-        
-        if (search) query = query.ilike('course_name', `%${search}%`);
-        
-        const { data, error } = await query;
-        if (!error && data) {
-            setCourses(data);
-        }
-        setLoadingCourses(false);
-    };
-    // ==================================================
-
     useEffect(() => {
-        const timer = setTimeout(() => { 
-            setPage(0); 
-            fetchProfs(true, 0); 
-            fetchCourses(true); // 💡 搜索时同时触发课程数据的获取
+        const timer = setTimeout(() => {
+            setPage(0);
+            fetchProfs(true, 0);
         }, 300);
         return () => clearTimeout(timer);
-    }, [search]);
+    }, [search, selectedCourseId]);
 
     const handleLoadMore = () => {
         const nextPage = page + 1;
@@ -139,174 +147,133 @@ export default function HomePage() {
     };
 
     return (
-        <main className="max-w-[1500px] mx-auto p-6 min-h-screen">
+        <main className="max-w-[1500px] mx-auto p-6 min-h-screen bg-[#FDFDFD]">
             {/* 顶部导航 */}
-            <nav className="flex justify-between items-center mb-12">
-                <div className="flex items-center gap-8">
-                    <div className="font-black text-2xl tracking-tighter">HIT.PROF</div>
-                    <div className="hidden md:flex relative group w-80">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <nav className="flex flex-col md:flex-row justify-between items-center py-6 mb-12 px-6 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm gap-6">
+                <div className="font-black text-3xl tracking-tighter italic select-none">HIT.PROF</div>
+
+                <div className="flex flex-1 items-center gap-3 max-w-3xl w-full">
+                    <div className="relative flex-1 group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
                         <input
                             type="text"
-                            placeholder="快速寻找教授或课程..."
-                            className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-gray-200 focus:border-black focus:ring-1 focus:ring-black outline-none text-sm transition-all shadow-sm group-hover:border-gray-300"
+                            placeholder="寻找教授..."
+                            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:border-black outline-none text-sm transition-all font-medium"
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
+
+                    <div className="relative flex items-center bg-white border border-gray-100 rounded-2xl px-4 py-1.5 shadow-sm hover:border-gray-300 transition-all">
+                        <BookOpen size={16} className="text-blue-500 mr-2" />
+                        <select
+                            className="bg-transparent text-sm font-bold outline-none cursor-pointer text-gray-700 py-1.5 pr-2 min-w-[140px]"
+                            value={selectedCourseId}
+                            onChange={(e) => setSelectedCourseId(e.target.value)}
+                        >
+                            <option value="all">所有课程</option>
+                            {courseOptions.map(c => (
+                                <option key={c.id} value={c.id}>[{c.course_code}] {c.course_name}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
-                {user ? (
-                    <div className="flex items-center gap-4">
-                        <img src={user.user_metadata.avatar_url} className="w-8 h-8 rounded-xl shadow-sm" alt="avatar" />
-                        <span className="text-sm font-bold text-gray-600">{user.user_metadata.full_name}</span>
-                        <button onClick={signOut} className="text-gray-400 hover:text-red-500 transition-colors"><LogOut size={20} /></button>
-                    </div>
-                ) : (
-                    <button onClick={signInWithGithub} className="bg-black text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-zinc-800 transition-all">登录</button>
-                )}
+                <div className="flex items-center gap-4">
+                    {user ? (
+                        <div className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl">
+                            <img src={user.user_metadata.avatar_url} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" />
+                            <button onClick={signOut} className="text-gray-400 hover:text-red-500 transition-colors"><LogOut size={18} /></button>
+                        </div>
+                    ) : (
+                        <button onClick={signInWithGithub} className="bg-black text-white px-6 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10 flex items-center gap-2">
+                            <Github size={18} /> LOGIN
+                        </button>
+                    )}
+                </div>
             </nav>
 
-            <div className="flex flex-col lg:flex-row gap-12">
+            <div className="flex flex-col lg:flex-row gap-10">
                 {/* 左侧：主列表 */}
-                <div className="flex-1">
-                    
-                    {/* ================= 教授板块 ================= */}
-                    <div className="mb-12">
-                        <div className="flex items-end justify-between mb-8">
-                            <div>
-                                <h2 className="text-4xl font-black tracking-tight mb-2">探索评价</h2>
-                                <p className="text-gray-400 font-medium">已显示 {profs.length}+ 位教师的数据</p>
-                            </div>
-                        </div>
-
-                        {loading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
-                                {[...Array(4)].map((_, i) => <div key={i} className="h-56 bg-gray-50 rounded-[2.5rem]" />)}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                {profs.map((prof) => (
-                                    <Link href={`/professor/${prof.id}`} key={prof.id}>
-                                        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-500">
-                                            <div className="flex justify-between items-start mb-8">
-                                                <div>
-                                                    <h3 className="text-2xl font-black text-gray-900">{prof.name}</h3>
-                                                    <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-1 rounded font-bold uppercase tracking-widest mt-2 inline-block">
-                                                        {prof.department}
-                                                    </span>
-                                                </div>
-                                                {prof.total_reviews > 10 && <span className="bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-1 rounded-lg italic">HOT</span>}
-                                            </div>
-                                            <div className="flex gap-4">
-                                                <div className="flex-1 bg-blue-50/50 p-4 rounded-2xl">
-                                                    <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Teaching</p>
-                                                    <p className="text-2xl font-black text-blue-600">{prof.avg_teaching_quality?.toFixed(1)}</p>
-                                                </div>
-                                                <div className="flex-1 bg-purple-50/50 p-4 rounded-2xl">
-                                                    <p className="text-[9px] font-black text-purple-400 uppercase mb-1">Research</p>
-                                                    <p className="text-2xl font-black text-purple-600">{prof.avg_research_quality?.toFixed(1)}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                ))}
-                            </div>
-                        )}
-
-                        {hasMore && !loading && (
-                            <button onClick={handleLoadMore} disabled={loadingMore} className="w-full mt-12 py-5 rounded-[2rem] bg-zinc-50 font-black text-zinc-400 hover:text-black hover:bg-zinc-100 transition-all">
-                                {loadingMore ? "正在同步数据..." : "查看更多教授记录"}
-                            </button>
-                        )}
+                <div className="flex-1 min-w-0">
+                    <div className="mb-10 px-2">
+                        <h2 className="text-3xl font-black tracking-tight text-gray-900">
+                            {selectedCourseId === 'all' ? '发现优秀导师' : '该课程下的教师'}
+                        </h2>
+                        <p className="text-gray-400 font-bold text-sm mt-1 uppercase tracking-widest">Selected Filter: {selectedCourseId === 'all' ? 'Universal' : 'Specific Course'}</p>
                     </div>
 
-                    {/* 精美的分割线 */}
-                    <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-12" />
-
-                    {/* ================= 课程板块 ================= */}
-                    <div>
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl"><BookOpen size={24} /></div>
-                            <div>
-                                <h2 className="text-3xl font-black tracking-tight">热门课程</h2>
-                                <p className="text-sm text-gray-400 font-medium mt-1">看看大家都在聊什么课</p>
-                            </div>
+                    {loading ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
+                            {[...Array(4)].map((_, i) => <div key={i} className="h-64 bg-gray-100 rounded-[3rem]" />)}
                         </div>
-
-                        {loadingCourses ? (
-                            <div className="grid grid-cols-1 gap-4 animate-pulse">
-                                {[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-gray-50 rounded-[2.5rem]" />)}
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-4">
-                                {courses.map((course) => (
-                                    <div key={course.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 hover:border-orange-200 hover:shadow-xl hover:shadow-orange-100/50 transition-all duration-300 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-                                        
-                                        <div className="bg-orange-50 w-20 h-20 rounded-[1.5rem] flex flex-col items-center justify-center shrink-0">
-                                            <span className="text-2xl font-black text-orange-600">{course.score}</span>
-                                            <span className="text-[9px] font-bold text-orange-400 uppercase tracking-wider">Score</span>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            {profs.map((prof) => (
+                                <Link href={`/professor/${prof.id}`} key={prof.id}>
+                                    <div className="bg-white p-8 rounded-[3rem] border border-gray-100 hover:border-black hover:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] transition-all duration-500 group flex flex-col h-full">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <h3 className="text-2xl font-black text-gray-900 group-hover:text-blue-600 transition-colors">{prof.name}</h3>
+                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">{prof.department}</p>
+                                            </div>
+                                            {prof.total_reviews > 8 && (
+                                                <div className="bg-orange-50 text-orange-500 p-2 rounded-xl">
+                                                    <Flame size={20} fill="currentColor" />
+                                                </div>
+                                            )}
                                         </div>
-                                        
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-xl font-black text-gray-900 truncate mb-1">{course.course_name}</h3>
-                                            
-                                            <p className="text-xs font-bold text-gray-400 mb-3 flex items-center gap-1">
-                                                <GraduationCap size={12} /> 授课教师: {
-                                                    Array.isArray(course.professors) && course.professors.length > 0 
-                                                        ? course.professors.map((p: any) => p.name).join(' & ') 
-                                                        : '暂无'
-                                                }
-                                            </p>
-                                            
-                                            <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                                "{course.evaluation}"
-                                            </p>
+
+                                        {/* 课程标签区域 */}
+                                        <div className="flex flex-wrap gap-2 mb-8">
+                                            {prof.course_professors?.slice(0, 3).map((cp: any, idx: number) => (
+                                                <span key={idx} className="text-[9px] font-black bg-gray-50 text-gray-400 px-2.5 py-1 rounded-lg border border-gray-100 group-hover:bg-blue-50 group-hover:text-blue-500 group-hover:border-blue-100 transition-colors">
+                                                    {cp.courses?.course_code}
+                                                </span>
+                                            ))}
+                                            {prof.course_professors?.length > 3 && (
+                                                <span className="text-[9px] font-black text-gray-300 py-1">+{prof.course_professors.length - 3}</span>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-auto flex gap-4">
+                                            <div className="flex-1 bg-blue-50/30 p-4 rounded-2xl border border-blue-50">
+                                                <p className="text-[9px] font-black text-blue-300 uppercase mb-1">Teaching</p>
+                                                <p className="text-2xl font-black text-blue-600">{prof.avg_teaching_quality?.toFixed(1) || 'N/A'}</p>
+                                            </div>
+                                            <div className="flex-1 bg-purple-50/30 p-4 rounded-2xl border border-purple-50">
+                                                <p className="text-[9px] font-black text-purple-300 uppercase mb-1">Research</p>
+                                                <p className="text-2xl font-black text-purple-600">{prof.avg_research_quality?.toFixed(1) || 'N/A'}</p>
+                                            </div>
                                         </div>
                                     </div>
-                                ))}
-                                {courses.length === 0 && !loadingCourses && (
-                                    <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-[2.5rem] border border-dashed border-gray-200">
-                                        还没有课程评价数据哦！
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    {/* ========================================= */}
+                                </Link>
+                            ))}
+                        </div>
+                    )}
 
+                    {hasMore && !loading && (
+                        <button onClick={handleLoadMore} disabled={loadingMore} className="w-full mt-12 py-5 rounded-[2.5rem] bg-white border-2 border-gray-50 font-black text-gray-400 hover:text-black hover:border-black transition-all shadow-sm flex items-center justify-center gap-3">
+                            {loadingMore ? "SYNCING..." : <><Plus size={20} /> MORE PROFESSORS</>}
+                        </button>
+                    )}
                 </div>
 
-                {/* 右侧：双榜单 */}
-                <div className="w-full lg:w-80 space-y-8 sticky top-6">
-                    {/* 教学红榜 */}
-                    <LeaderboardSection
-                        title="教学之星"
-                        icon={GraduationCap}
-                        data={topTeaching}
-                        scoreKey="avg_teaching_quality"
-                        colorClass="text-blue-600"
-                    />
+                {/* 右侧：侧边栏 */}
+                <div className="w-full lg:w-80 space-y-8 sticky top-10 h-fit">
+                    <LeaderboardSection title="教学红榜" icon={Trophy} data={topTeaching} scoreKey="avg_teaching_quality" colorClass="text-blue-600" />
+                    <LeaderboardSection title="科研红榜" icon={Microscope} data={topResearch} scoreKey="avg_research_quality" colorClass="text-purple-600" />
 
-                    {/* 科研红榜 */}
-                    <LeaderboardSection
-                        title="科研大牛"
-                        icon={Microscope}
-                        data={topResearch}
-                        scoreKey="avg_research_quality"
-                        colorClass="text-purple-600"
-                    />
-
-                    {/* 快捷反馈 */}
-                    <div className="p-6 bg-black rounded-[2rem] text-white">
-                        <p className="text-xs font-bold opacity-50 mb-2 uppercase tracking-widest">找不到教授？</p>
-                        <p className="text-sm font-medium mb-4">前往 GitHub 提交 Issue，联系管理员快速添加缺失的教师信息</p>
+                    <div className="p-10 bg-zinc-900 rounded-[3rem] text-white shadow-2xl shadow-zinc-200 relative overflow-hidden group">
+                        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/10 rounded-full blur-3xl group-hover:bg-blue-500/20 transition-all" />
+                        <p className="text-[10px] font-black text-blue-400 mb-2 tracking-[0.2em] uppercase">Feedback</p>
+                        <h4 className="text-xl font-bold mb-6 leading-tight">未找到教授？</h4>
                         <a
-                            href="https://github.com/the-lord-of-stars/UNNC-CampusAllRounder/issues"
+                            href="https://github.com/the-lord-of-stars/UNNC-CampusAllRounder/issues/new?title=%E3%80%90%E6%B7%BB%E5%8A%A0%E6%95%99%E6%8E%88%E3%80%91"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block w-full py-3 bg-white text-black rounded-xl text-xs font-black hover:bg-zinc-200 transition-colors text-center"
+                            className="flex items-center justify-center gap-2 w-full py-4 bg-white text-black rounded-2xl text-xs font-black hover:bg-blue-500 hover:text-white transition-all shadow-lg shadow-black/20"
                         >
-                            申请添加
+                            GO GITHUB <ChevronRight size={14} />
                         </a>
                     </div>
                 </div>
