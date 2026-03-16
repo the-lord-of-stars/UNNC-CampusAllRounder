@@ -1,7 +1,8 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { supabase, signInWithGithub, signOut } from '@/lib/supabase';
-import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, ChevronRight } from 'lucide-react';
+// 💡 注意这里我帮你引入了 BookOpen 作为课程的图标
+import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, ChevronRight, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 6;
@@ -16,6 +17,11 @@ export default function HomePage() {
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [user, setUser] = useState<any>(null);
+
+    // ================= 新增：课程相关状态 =================
+    const [courses, setCourses] = useState<any[]>([]);
+    const [loadingCourses, setLoadingCourses] = useState(true);
+    // ==================================================
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -44,7 +50,6 @@ export default function HomePage() {
         return () => subscription.unsubscribe();
     }, []);
 
-    // 数据加载逻辑 (fetchProfs) 保持之前逻辑不变...
     const fetchProfs = async (isNewSearch: boolean, targetPage: number) => {
         if (isNewSearch) setLoading(true);
         else setLoadingMore(true);
@@ -66,8 +71,28 @@ export default function HomePage() {
         setLoadingMore(false);
     };
 
+    // ================= 新增：获取课程数据 =================
+    const fetchCourses = async (isNewSearch: boolean) => {
+        if (isNewSearch) setLoadingCourses(true);
+        
+        let query = supabase.from('courses').select('*, professors(id, name)').order('score', { ascending: false }).limit(6); 
+        
+        if (search) query = query.ilike('course_name', `%${search}%`);
+        
+        const { data, error } = await query;
+        if (!error && data) {
+            setCourses(data);
+        }
+        setLoadingCourses(false);
+    };
+    // ==================================================
+
     useEffect(() => {
-        const timer = setTimeout(() => { setPage(0); fetchProfs(true, 0); }, 300);
+        const timer = setTimeout(() => { 
+            setPage(0); 
+            fetchProfs(true, 0); 
+            fetchCourses(true); // 💡 搜索时同时触发课程数据的获取
+        }, 300);
         return () => clearTimeout(timer);
     }, [search]);
 
@@ -78,10 +103,9 @@ export default function HomePage() {
     };
 
     // 榜单渲染组件 (抽离以复用)
-    // 榜单渲染组件 (抽离以复用)
     const LeaderboardSection = ({ title, icon: Icon, data, scoreKey, colorClass }: any) => {
         
-        // 💡 新增：根据排名获取不同颜色的函数 (金、银、铜、普通)
+        // 根据排名获取不同颜色的函数 (金、银、铜、普通)
         const getRankStyle = (index: number) => {
             if (index === 0) return 'bg-yellow-400 text-white shadow-sm'; // 第一名：金
             if (index === 1) return 'bg-slate-300 text-white shadow-sm';  // 第二名：银
@@ -98,8 +122,6 @@ export default function HomePage() {
                 <div className="space-y-4">
                     {data.map((prof: any, index: number) => (
                         <Link href={`/professor/${prof.id}`} key={`${title}-${prof.id}`} className="flex items-center gap-3 group">
-                            
-                            {/* 👇 这里应用了刚才写的 getRankStyle 函数 */}
                             <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black transition-colors ${getRankStyle(index)}`}>
                                 {index + 1}
                             </span>
@@ -126,7 +148,7 @@ export default function HomePage() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                         <input
                             type="text"
-                            placeholder="快速寻找教授..."
+                            placeholder="快速寻找教授或课程..."
                             className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-gray-200 focus:border-black focus:ring-1 focus:ring-black outline-none text-sm transition-all shadow-sm group-hover:border-gray-300"
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -147,52 +169,111 @@ export default function HomePage() {
             <div className="flex flex-col lg:flex-row gap-12">
                 {/* 左侧：主列表 */}
                 <div className="flex-1">
-                    <div className="flex items-end justify-between mb-8">
-                        <div>
-                            <h2 className="text-4xl font-black tracking-tight mb-2">探索评价</h2>
-                            <p className="text-gray-400 font-medium">已显示 {profs.length}+ 位教师的数据</p>
+                    
+                    {/* ================= 教授板块 ================= */}
+                    <div className="mb-12">
+                        <div className="flex items-end justify-between mb-8">
+                            <div>
+                                <h2 className="text-4xl font-black tracking-tight mb-2">探索评价</h2>
+                                <p className="text-gray-400 font-medium">已显示 {profs.length}+ 位教师的数据</p>
+                            </div>
                         </div>
+
+                        {loading ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
+                                {[...Array(4)].map((_, i) => <div key={i} className="h-56 bg-gray-50 rounded-[2.5rem]" />)}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {profs.map((prof) => (
+                                    <Link href={`/professor/${prof.id}`} key={prof.id}>
+                                        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-500">
+                                            <div className="flex justify-between items-start mb-8">
+                                                <div>
+                                                    <h3 className="text-2xl font-black text-gray-900">{prof.name}</h3>
+                                                    <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-1 rounded font-bold uppercase tracking-widest mt-2 inline-block">
+                                                        {prof.department}
+                                                    </span>
+                                                </div>
+                                                {prof.total_reviews > 10 && <span className="bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-1 rounded-lg italic">HOT</span>}
+                                            </div>
+                                            <div className="flex gap-4">
+                                                <div className="flex-1 bg-blue-50/50 p-4 rounded-2xl">
+                                                    <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Teaching</p>
+                                                    <p className="text-2xl font-black text-blue-600">{prof.avg_teaching_quality?.toFixed(1)}</p>
+                                                </div>
+                                                <div className="flex-1 bg-purple-50/50 p-4 rounded-2xl">
+                                                    <p className="text-[9px] font-black text-purple-400 uppercase mb-1">Research</p>
+                                                    <p className="text-2xl font-black text-purple-600">{prof.avg_research_quality?.toFixed(1)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+
+                        {hasMore && !loading && (
+                            <button onClick={handleLoadMore} disabled={loadingMore} className="w-full mt-12 py-5 rounded-[2rem] bg-zinc-50 font-black text-zinc-400 hover:text-black hover:bg-zinc-100 transition-all">
+                                {loadingMore ? "正在同步数据..." : "查看更多教授记录"}
+                            </button>
+                        )}
                     </div>
 
-                    {loading ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-pulse">
-                            {[...Array(4)].map((_, i) => <div key={i} className="h-56 bg-gray-50 rounded-[2.5rem]" />)}
+                    {/* 精美的分割线 */}
+                    <div className="w-full h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-12" />
+
+                    {/* ================= 课程板块 ================= */}
+                    <div>
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="p-3 bg-orange-50 text-orange-600 rounded-2xl"><BookOpen size={24} /></div>
+                            <div>
+                                <h2 className="text-3xl font-black tracking-tight">热门课程</h2>
+                                <p className="text-sm text-gray-400 font-medium mt-1">看看大家都在聊什么课</p>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {profs.map((prof) => (
-                                <Link href={`/professor/${prof.id}`} key={prof.id}>
-                                    <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 hover:shadow-2xl hover:shadow-zinc-200/50 transition-all duration-500">
-                                        <div className="flex justify-between items-start mb-8">
-                                            <div>
-                                                <h3 className="text-2xl font-black text-gray-900">{prof.name}</h3>
-                                                <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-1 rounded font-bold uppercase tracking-widest mt-2 inline-block">
-                                                    {prof.department}
-                                                </span>
-                                            </div>
-                                            {prof.total_reviews > 10 && <span className="bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-1 rounded-lg italic">HOT</span>}
+
+                        {loadingCourses ? (
+                            <div className="grid grid-cols-1 gap-4 animate-pulse">
+                                {[...Array(3)].map((_, i) => <div key={i} className="h-32 bg-gray-50 rounded-[2.5rem]" />)}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4">
+                                {courses.map((course) => (
+                                    <div key={course.id} className="bg-white p-6 rounded-[2.5rem] border border-gray-100 hover:border-orange-200 hover:shadow-xl hover:shadow-orange-100/50 transition-all duration-300 flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                                        
+                                        <div className="bg-orange-50 w-20 h-20 rounded-[1.5rem] flex flex-col items-center justify-center shrink-0">
+                                            <span className="text-2xl font-black text-orange-600">{course.score}</span>
+                                            <span className="text-[9px] font-bold text-orange-400 uppercase tracking-wider">Score</span>
                                         </div>
-                                        <div className="flex gap-4">
-                                            <div className="flex-1 bg-blue-50/50 p-4 rounded-2xl">
-                                                <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Teaching</p>
-                                                <p className="text-2xl font-black text-blue-600">{prof.avg_teaching_quality?.toFixed(1)}</p>
-                                            </div>
-                                            <div className="flex-1 bg-purple-50/50 p-4 rounded-2xl">
-                                                <p className="text-[9px] font-black text-purple-400 uppercase mb-1">Research</p>
-                                                <p className="text-2xl font-black text-purple-600">{prof.avg_research_quality?.toFixed(1)}</p>
-                                            </div>
+                                        
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="text-xl font-black text-gray-900 truncate mb-1">{course.course_name}</h3>
+                                            
+                                            <p className="text-xs font-bold text-gray-400 mb-3 flex items-center gap-1">
+                                                <GraduationCap size={12} /> 授课教师: {
+                                                    Array.isArray(course.professors) && course.professors.length > 0 
+                                                        ? course.professors.map((p: any) => p.name).join(' & ') 
+                                                        : '暂无'
+                                                }
+                                            </p>
+                                            
+                                            <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                "{course.evaluation}"
+                                            </p>
                                         </div>
                                     </div>
-                                </Link>
-                            ))}
-                        </div>
-                    )}
+                                ))}
+                                {courses.length === 0 && !loadingCourses && (
+                                    <div className="text-center py-12 text-gray-400 font-medium bg-gray-50 rounded-[2.5rem] border border-dashed border-gray-200">
+                                        还没有课程评价数据哦！
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    {/* ========================================= */}
 
-                    {hasMore && (
-                        <button onClick={handleLoadMore} disabled={loadingMore} className="w-full mt-12 py-5 rounded-[2rem] bg-zinc-50 font-black text-zinc-400 hover:text-black hover:bg-zinc-100 transition-all">
-                            {loadingMore ? "正在同步数据..." : "查看更多教授记录"}
-                        </button>
-                    )}
                 </div>
 
                 {/* 右侧：双榜单 */}
