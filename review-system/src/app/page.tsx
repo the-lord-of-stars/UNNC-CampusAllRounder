@@ -78,30 +78,43 @@ export default function HomePage() {
     };
 
     // 榜单渲染组件 (抽离以复用)
-    const LeaderboardSection = ({ title, icon: Icon, data, scoreKey, colorClass }: any) => (
-        <div className="bg-white rounded-[2rem] p-6 border border-gray-100">
-            <div className="flex items-center gap-2 mb-6">
-                <Icon size={20} className={colorClass} />
-                <h3 className="font-black tracking-tight">{title}</h3>
+    // 榜单渲染组件 (抽离以复用)
+    const LeaderboardSection = ({ title, icon: Icon, data, scoreKey, colorClass }: any) => {
+        
+        // 💡 新增：根据排名获取不同颜色的函数 (金、银、铜、普通)
+        const getRankStyle = (index: number) => {
+            if (index === 0) return 'bg-yellow-400 text-white shadow-sm'; // 第一名：金
+            if (index === 1) return 'bg-slate-300 text-white shadow-sm';  // 第二名：银
+            if (index === 2) return 'bg-orange-400 text-white shadow-sm'; // 第三名：铜
+            return 'bg-gray-50 text-gray-400 border border-gray-100';     // 第四名及以后：低调的灰底
+        };
+
+        return (
+            <div className="bg-white rounded-[2rem] p-6 border border-gray-100">
+                <div className="flex items-center gap-2 mb-6">
+                    <Icon size={20} className={colorClass} />
+                    <h3 className="font-black tracking-tight">{title}</h3>
+                </div>
+                <div className="space-y-4">
+                    {data.map((prof: any, index: number) => (
+                        <Link href={`/professor/${prof.id}`} key={`${title}-${prof.id}`} className="flex items-center gap-3 group">
+                            
+                            {/* 👇 这里应用了刚才写的 getRankStyle 函数 */}
+                            <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black transition-colors ${getRankStyle(index)}`}>
+                                {index + 1}
+                            </span>
+                            
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-gray-800 truncate group-hover:text-blue-600 transition-colors">{prof.name}</p>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase">{prof.department}</p>
+                            </div>
+                            <span className={`text-xs font-black ${colorClass}`}>{Number(prof[scoreKey])?.toFixed(1)}</span>
+                        </Link>
+                    ))}
+                </div>
             </div>
-            <div className="space-y-4">
-                {data.map((prof: any, index: number) => (
-                    <Link href={`/professor/${prof.id}`} key={`${title}-${prof.id}`} className="flex items-center gap-3 group">
-                        <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
-                            index === 0 ? 'bg-yellow-400 text-white' : 'bg-white text-gray-400 border border-gray-100'
-                        }`}>
-                            {index + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-gray-800 truncate group-hover:text-blue-600 transition-colors">{prof.name}</p>
-                            <p className="text-[9px] text-gray-400 font-bold uppercase">{prof.department}</p>
-                        </div>
-                        <span className={`text-xs font-black ${colorClass}`}>{prof[scoreKey]?.toFixed(1)}</span>
-                    </Link>
-                ))}
-            </div>
-        </div>
-    );
+        );
+    };
 
     return (
         <main className="max-w-[1500px] mx-auto p-6 min-h-screen">
