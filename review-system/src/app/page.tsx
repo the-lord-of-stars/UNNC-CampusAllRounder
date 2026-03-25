@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from 'react';
 import { supabase, signInWithGithub, signOut } from '@/lib/supabase';
-import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, BookOpen, ChevronRight } from 'lucide-react';
+import { Search, GraduationCap, Microscope, Plus, LogOut, Github, Trophy, Flame, BookOpen, ChevronRight, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 
 const PAGE_SIZE = 6;
@@ -146,27 +146,35 @@ export default function HomePage() {
         );
     };
 
-    return (
-        <main className="max-w-[1500px] mx-auto p-6 min-h-screen bg-[#FDFDFD]">
-            {/* 顶部导航 */}
-            <nav className="fixed flex flex-col md:flex-row justify-between items-center py-6 mb-12 px-6 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm gap-6">
-                <div className="font-black text-3xl tracking-tighter italic select-none">HIT.PROF</div>
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-                <div className="flex flex-1 items-center gap-3 max-w-3xl w-full">
+    return (
+        <main className="max-w-[80vw] mx-auto p-6 min-h-screen bg-[#FDFDFD]">
+            {/* --- 顶部导航栏 --- */}
+            <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[95vw] md:w-full max-w-7xl z-[60] flex justify-between items-center py-2.5 md:py-3 px-4 md:px-8 bg-white/80 backdrop-blur-xl rounded-[2rem] md:rounded-[2.5rem] border border-gray-100 shadow-xl shadow-black/5 gap-4">
+                {/* 1. Logo */}
+                <div className="font-black text-xl md:text-2xl tracking-tighter italic select-none shrink-0">
+                    HIT.PROF
+                </div>
+
+                {/* 2. Desktop 搜索与筛选 (仅 md 以上显示) */}
+                <div className="hidden md:flex flex-1 items-center gap-3 max-w-3xl">
+                    {/* 搜索框 */}
                     <div className="relative flex-1 group">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
                         <input
                             type="text"
                             placeholder="寻找教授..."
-                            className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-100 bg-gray-50/30 focus:bg-white focus:border-black outline-none text-sm transition-all font-medium"
+                            className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-gray-50/50 border border-gray-100 focus:bg-white focus:border-black focus:ring-4 focus:ring-black/5 outline-none text-sm transition-all font-medium"
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
 
-                    <div className="relative flex items-center bg-white border border-gray-100 rounded-2xl px-4 py-1.5 shadow-sm hover:border-gray-300 transition-all">
-                        <BookOpen size={16} className="text-blue-500 mr-2" />
+                    {/* 课程筛选 */}
+                    <div className="relative flex items-center bg-white border border-gray-100 rounded-2xl px-4 py-2 shadow-sm hover:border-gray-300 transition-all">
+                        <BookOpen size={16} className="text-blue-500 mr-2 shrink-0" />
                         <select
-                            className="bg-transparent text-sm font-bold outline-none cursor-pointer text-gray-700 py-1.5 pr-2 min-w-[140px]"
+                            className="bg-transparent text-sm font-bold outline-none cursor-pointer text-gray-700 py-1 pr-2 min-w-[140px] max-w-[200px]"
                             value={selectedCourseId}
                             onChange={(e) => setSelectedCourseId(e.target.value)}
                         >
@@ -178,19 +186,95 @@ export default function HomePage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    {user ? (
-                        <div className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl">
-                            <img src={user.user_metadata.avatar_url} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" />
-                            <button onClick={signOut} className="text-gray-400 hover:text-red-500 transition-colors"><LogOut size={18} /></button>
-                        </div>
-                    ) : (
-                        <button onClick={signInWithGithub} className="bg-black text-white px-6 py-3 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10 flex items-center gap-2">
-                            <Github size={18} /> LOGIN
-                        </button>
-                    )}
+                {/* 3. 右侧操作区 */}
+                <div className="flex items-center gap-2 shrink-0">
+                    {/* 手机端汉堡按钮 */}
+                    <button
+                        onClick={() => setIsDrawerOpen(true)}
+                        className="md:hidden p-2.5 bg-gray-900 text-white rounded-full active:scale-90 transition-transform shadow-md"
+                    >
+                        <Menu size={20} />
+                    </button>
+
+                    {/* 用户头像/登录 (Desktop 保持原样) */}
+                    <div className="hidden md:flex items-center">
+                        {user ? (
+                            <div className="flex items-center gap-3 bg-gray-50 p-1.5 pr-4 rounded-2xl border border-gray-100">
+                                <img src={user.user_metadata.avatar_url} className="w-8 h-8 rounded-xl border-2 border-white shadow-sm" alt="" />
+                                <button onClick={signOut} className="text-gray-400 hover:text-red-500 transition-colors"><LogOut size={18} /></button>
+                            </div>
+                        ) : (
+                            <button onClick={signInWithGithub} className="bg-black text-white px-6 py-2.5 rounded-2xl font-black text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10 flex items-center gap-2 uppercase tracking-tight">
+                                <Github size={18} /> Login
+                            </button>
+                        )}
+                    </div>
+
+                    {/* 手机端简易头像 (可选：如果你想在外面留个头像) */}
+                    {user && <img src={user.user_metadata.avatar_url} className="md:hidden w-9 h-9 rounded-full border-2 border-white shadow-sm" alt="" />}
                 </div>
             </nav>
+
+            {/* --- 手机端 Drawer --- */}
+            <div className={`fixed inset-0 z-[70] transition-all duration-300 ${isDrawerOpen ? 'visible' : 'invisible'}`}>
+                <div className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isDrawerOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsDrawerOpen(false)} />
+
+                <div className={`absolute top-0 left-0 right-0 bg-white rounded-b-[2.5rem] p-6 pb-10 shadow-2xl transition-transform duration-500 ease-out transform ${isDrawerOpen ? 'translate-y-0' : '-translate-y-full'}`}>
+                    <div className="flex justify-between items-center mb-8">
+                        <span className="font-black text-xl italic tracking-tighter">EXPLORE</span>
+                        <button onClick={() => setIsDrawerOpen(false)} className="p-2 bg-gray-100 rounded-full">
+                            <X size={24} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-6">
+                        {/* 移动端搜索 */}
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Search Professor</p>
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                                <input
+                                    autoFocus
+                                    type="text"
+                                    placeholder="寻找教授..."
+                                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-black outline-none text-base font-bold transition-all"
+                                    onChange={(e) => setSearch(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 移动端筛选 */}
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest ml-1">Course Category</p>
+                            <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-4 border-2 border-transparent focus-within:border-black transition-all">
+                                <BookOpen size={20} className="text-blue-500 mr-3" />
+                                <select
+                                    className="bg-transparent text-base font-bold outline-none w-full text-gray-700 appearance-none"
+                                    value={selectedCourseId}
+                                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                                >
+                                    <option value="all">所有课程</option>
+                                    {courseOptions.map(c => (
+                                        <option key={c.id} value={c.id}>[{c.course_code}] {c.course_name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* 登录/退出按钮 */}
+                        {!user ? (
+                            <button onClick={signInWithGithub} className="w-full bg-black text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl shadow-black/20 mt-4">
+                                <Github size={20} /> LOGIN WITH GITHUB
+                            </button>
+                        ) : (
+                            <button onClick={signOut} className="w-full flex items-center justify-center gap-2 py-4 text-red-500 font-bold bg-red-50 rounded-2xl">
+                                <LogOut size={18} /> 退出登录
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
 
             <br/>
             <br/>
@@ -284,6 +368,14 @@ export default function HomePage() {
                     </div>
                 </div>
             </div>
+
+            <br/>
+
+            <footer className="py-8 bg-white/30 backdrop-blur-md border-t border-white/20 text-center">
+                <p className="text-gray-600 tracking-wide text-xs uppercase">
+                    &copy; 2026 UNNCAllRounder — <span className="italic">Built for Excellence</span>
+                </p>
+            </footer>
         </main>
     );
 }
