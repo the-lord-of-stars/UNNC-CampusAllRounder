@@ -149,7 +149,7 @@ export default function HomePage() {
     return (
         <main className="max-w-[1500px] mx-auto p-6 min-h-screen bg-[#FDFDFD]">
             {/* 顶部导航 */}
-            <nav className="flex flex-col md:flex-row justify-between items-center py-6 mb-12 px-6 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm gap-6">
+            <nav className="fixed flex flex-col md:flex-row justify-between items-center py-6 mb-12 px-6 bg-white rounded-[2.5rem] border border-gray-100 shadow-sm gap-6">
                 <div className="font-black text-3xl tracking-tighter italic select-none">HIT.PROF</div>
 
                 <div className="flex flex-1 items-center gap-3 max-w-3xl w-full">
@@ -191,6 +191,12 @@ export default function HomePage() {
                     )}
                 </div>
             </nav>
+
+            <br/>
+            <br/>
+            <br/>
+            <br/>
+            <br/>
 
             <div className="flex flex-col lg:flex-row gap-10">
                 {/* 左侧：主列表 */}
